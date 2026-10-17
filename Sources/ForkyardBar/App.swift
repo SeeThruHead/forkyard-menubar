@@ -3,11 +3,14 @@ import Combine
 import SwiftUI
 
 @main
-struct ForkyardBarApp: App {
-  @NSApplicationDelegateAdaptor(StatusBarController.self) private var controller
+enum ForkyardBar {
+  @MainActor private static let controller = StatusBarController()
 
-  var body: some Scene {
-    Settings { EmptyView() }
+  @MainActor static func main() {
+    let app = NSApplication.shared
+    app.setActivationPolicy(.accessory)
+    app.delegate = controller
+    app.run()
   }
 }
 
