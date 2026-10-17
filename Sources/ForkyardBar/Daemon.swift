@@ -43,6 +43,7 @@ final class Daemon: ObservableObject {
   private var socket: URLSessionWebSocketTask?
   private var nextId = 100
   private var lastStates: [String: String] = [:]
+  private var alerted: Set<String> = []
 
   init(port: Int = Int(ProcessInfo.processInfo.environment["FORKYARD_HTTP_PORT"] ?? "") ?? 4949) {
     endpoint = URL(string: "ws://127.0.0.1:\(port)/rpc")!
@@ -189,9 +190,12 @@ final class Daemon: ObservableObject {
       next.flatMap { worktree in worktree.services.map { ("\(worktree.id)/\($0.key)", $0.value.state.tag) } },
       uniquingKeysWith: { first, _ in first }
     )
-    let newlyFailed = states.filter { $0.value == "Failed" && lastStates[$0.key] != nil && lastStates[$0.key] != "Failed" }.keys
+    let healthy = Set(states.filter { $0.value == "Ready" || $0.value == "Done" }.keys)
+    let failing = Set(states.filter { $0.value == "Failed" }.keys)
+    let fresh = failing.subtracting(alerted).filter { lastStates[$0] != nil }
+    alerted = alerted.intersection(states.keys).subtracting(healthy).union(fresh)
     lastStates = states
-    newlyFailed.sorted().forEach(notify)
+    fresh.sorted().forEach(notify)
   }
 
   private func notify(_ key: String) {
