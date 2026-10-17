@@ -115,6 +115,42 @@ struct WorktreeRow: View {
   }
 }
 
+struct RepoSection: View {
+  let daemon: Daemon
+  let name: String
+  let worktrees: [Worktree]
+  @State private var open = true
+
+  var usage: Usage { worktrees.map { daemon.usage(of: $0) }.reduce(.zero, +) }
+  var settled: Int { worktrees.reduce(0) { $0 + $1.settledCount } }
+  var total: Int { worktrees.reduce(0) { $0 + $1.services.count } }
+  var failed: Int { worktrees.reduce(0) { $0 + $1.failed.count } }
+
+  var header: some View {
+    HStack(spacing: 8) {
+      Image(systemName: open ? "chevron.down" : "chevron.right").font(.system(size: 9)).foregroundStyle(.secondary)
+      Text(name).font(.system(size: 12, weight: .bold))
+      Text("\(worktrees.count) \(worktrees.count == 1 ? "branch" : "branches")").font(.system(size: 11)).foregroundStyle(.secondary)
+      Spacer()
+      Text(failed > 0 ? "\(settled)/\(total) · \(failed) failed" : "\(settled)/\(total)")
+        .font(.system(size: 11, design: .monospaced))
+        .foregroundStyle(failed > 0 ? Color.red : Color.secondary)
+      Text("\(usage.cpuText)  \(usage.memoryText)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+    }
+    .contentShape(Rectangle())
+    .onTapGesture { open.toggle() }
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      header
+      if open {
+        ForEach(worktrees) { worktree in WorktreeRow(daemon: daemon, worktree: worktree).padding(.leading, 12) }
+      }
+    }
+  }
+}
+
 struct MenuContent: View {
   @ObservedObject var daemon: Daemon
 
@@ -153,10 +189,7 @@ struct MenuContent: View {
       ScrollView {
         VStack(alignment: .leading, spacing: 12) {
           ForEach(daemon.projects, id: \.name) { project in
-            VStack(alignment: .leading, spacing: 6) {
-              Text(project.name.uppercased()).font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
-              ForEach(project.worktrees) { worktree in WorktreeRow(daemon: daemon, worktree: worktree) }
-            }
+            RepoSection(daemon: daemon, name: project.name, worktrees: project.worktrees)
           }
         }
       }
