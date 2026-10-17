@@ -176,7 +176,7 @@ struct MenuContent: View {
   var footer: some View {
     HStack {
       Button("Dashboard") { NSWorkspace.shared.open(daemon.dashboard) }
-      Button("Terminal UI") { openTerminalUI() }
+      Button("Terminal UI") { daemon.openTerminalUI() }
       Spacer()
       Button("Quit") { NSApplication.shared.terminate(nil) }
     }
@@ -195,14 +195,14 @@ struct MenuContent: View {
       }
       .frame(height: listHeight)
       Divider()
+      if let problem = daemon.problem {
+        Text(problem).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+      }
       footer
     }
     .padding(12)
     .frame(width: 520)
   }
 
-  private func openTerminalUI() {
-    let script = #"tell application "Terminal" to do script "forkyard attach""#
-    NSAppleScript(source: script)?.executeAndReturnError(nil)
-  }
+
 }

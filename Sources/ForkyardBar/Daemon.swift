@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import UserNotifications
 
@@ -12,6 +13,14 @@ struct StatusChunk: Decodable {
   let values: [[String: Worktree]]
 }
 
+struct InfoExit: Decodable {
+  struct Outcome: Decodable {
+    struct Value: Decodable { let cli: String }
+    let value: Value?
+  }
+  let exit: Outcome
+}
+
 struct UsageChunk: Decodable {
   let values: [[String: Usage]]
 }
@@ -21,6 +30,8 @@ final class Daemon: ObservableObject {
   @Published private(set) var worktrees: [Worktree] = []
   @Published private(set) var connected = false
   @Published private(set) var usage: [Int: Usage] = [:]
+  @Published private(set) var problem: String?
+  private var cliPath: String?
 
   let dashboard = URL(string: "http://forkyard.localhost")!
   private let endpoint: URL
@@ -56,6 +67,37 @@ final class Daemon: ObservableObject {
     send(tag: "Restart", payload: ["id": worktree.id, "service": service])
   }
 
+  func openTerminalUI() {
+    problem = nil
+    guard let cli = cliPath else {
+      problem = "The daemon has not reported where its CLI is yet. Is it running?"
+      return
+    }
+    let command = "\(cli) attach"
+    if let kitty = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "net.kovidgoyal.kitty") {
+      launch("/usr/bin/open", ["-na", kitty.path, "--args", cli, "attach"])
+      return
+    }
+    if NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.googlecode.iterm2") != nil {
+      runScript(#"tell application "iTerm" to create window with default profile command "\#(command)""#)
+      return
+    }
+    runScript(#"tell application "Terminal" to activate\#ntell application "Terminal" to do script "\#(command)""#)
+  }
+
+  private func launch(_ path: String, _ arguments: [String]) {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: path)
+    process.arguments = arguments
+    do { try process.run() } catch { problem = "Could not open the terminal: \(error.localizedDescription)" }
+  }
+
+  private func runScript(_ source: String) {
+    var error: NSDictionary?
+    NSAppleScript(source: source)?.executeAndReturnError(&error)
+    if let error { problem = "Could not open the terminal: \(error[NSAppleScript.errorMessage] ?? error)" }
+  }
+
   func stop(_ worktree: Worktree) {
     send(tag: "Down", payload: ["id": worktree.id])
   }
@@ -66,6 +108,7 @@ final class Daemon: ObservableObject {
     task.resume()
     send(tag: "Status", payload: nil, id: "1")
     send(tag: "Usage", payload: nil, id: "2")
+    send(tag: "Info", payload: nil, id: "3")
     receive(task)
   }
 
@@ -108,6 +151,10 @@ final class Daemon: ObservableObject {
 
   private func handle(_ data: Data) {
     guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
+      return
+    }
+    if envelope.tag == "Exit", envelope.requestId == "3" {
+      cliPath = (try? JSONDecoder().decode(InfoExit.self, from: data))?.exit.value?.cli
       return
     }
     guard envelope.tag == "Chunk", let requestId = envelope.requestId else { return }
