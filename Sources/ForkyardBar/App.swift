@@ -1,28 +1,56 @@
 import AppKit
+import Combine
 import SwiftUI
 
 @main
 struct ForkyardBarApp: App {
-  @StateObject private var daemon = Daemon()
+  @NSApplicationDelegateAdaptor(StatusBarController.self) private var controller
 
   var body: some Scene {
-    MenuBarExtra {
-      MenuContent(daemon: daemon)
-    } label: {
-      MenuLabel(daemon: daemon)
-    }
-    .menuBarExtraStyle(.window)
+    Settings { EmptyView() }
   }
 }
 
-struct MenuLabel: View {
-  @ObservedObject var daemon: Daemon
+@MainActor
+final class StatusBarController: NSObject, NSApplicationDelegate {
+  private let daemon = Daemon()
+  private let popover = NSPopover()
+  private var item: NSStatusItem?
+  private var watcher: AnyCancellable?
 
-  var body: some View {
-    HStack(spacing: 3) {
-      Image(systemName: daemon.health.symbol)
-      if daemon.connected { Text("\(daemon.worktrees.count)") }
+  func applicationDidFinishLaunching(_ notification: Notification) {
+    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+    item.button?.target = self
+    item.button?.action = #selector(toggle)
+    item.button?.imagePosition = .imageLeading
+    self.item = item
+
+    let host = NSHostingController(rootView: MenuContent(daemon: daemon))
+    host.sizingOptions = .preferredContentSize
+    popover.contentViewController = host
+    popover.behavior = .transient
+    popover.animates = false
+
+    watcher = daemon.objectWillChange.sink { [weak self] _ in
+      DispatchQueue.main.async { self?.refreshButton() }
     }
+    refreshButton()
+  }
+
+  private func refreshButton() {
+    guard let button = item?.button else { return }
+    button.image = NSImage(systemSymbolName: daemon.health.symbol, accessibilityDescription: "forkyard")
+    button.title = daemon.connected ? " \(daemon.worktrees.count)" : ""
+  }
+
+  @objc private func toggle() {
+    guard let button = item?.button else { return }
+    if popover.isShown {
+      popover.performClose(nil)
+      return
+    }
+    popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    popover.contentViewController?.view.window?.makeKey()
   }
 }
 
