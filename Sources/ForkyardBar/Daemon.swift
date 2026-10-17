@@ -15,7 +15,11 @@ struct StatusChunk: Decodable {
 
 struct InfoExit: Decodable {
   struct Outcome: Decodable {
-    struct Value: Decodable { let cli: String }
+    struct Value: Decodable {
+      let cli: String
+      let version: String?
+      let `protocol`: Int?
+    }
     let value: Value?
   }
   let exit: Outcome
@@ -32,6 +36,7 @@ final class Daemon: ObservableObject {
   @Published private(set) var usage: [Int: Usage] = [:]
   @Published private(set) var problem: String?
   private var cliPath: String?
+  private let requiredProtocol = 1
 
   let dashboard = URL(string: "http://forkyard.localhost")!
   private let endpoint: URL
@@ -154,7 +159,11 @@ final class Daemon: ObservableObject {
       return
     }
     if envelope.tag == "Exit", envelope.requestId == "3" {
-      cliPath = (try? JSONDecoder().decode(InfoExit.self, from: data))?.exit.value?.cli
+      let info = (try? JSONDecoder().decode(InfoExit.self, from: data))?.exit.value
+      cliPath = info?.cli
+      if (info?.protocol ?? 0) < requiredProtocol {
+        problem = "The running forkyard daemon (\(info?.version ?? "an older version")) is too old for this app. Restart the daemon to upgrade it."
+      }
       return
     }
     guard envelope.tag == "Chunk", let requestId = envelope.requestId else { return }
