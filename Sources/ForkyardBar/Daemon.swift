@@ -12,6 +12,10 @@ struct StatusChunk: Decodable {
   let values: [[String: Worktree]]
 }
 
+struct UsageChunk: Decodable {
+  let values: [[String: Usage]]
+}
+
 @MainActor
 final class Daemon: ObservableObject {
   @Published private(set) var worktrees: [Worktree] = []
@@ -28,7 +32,6 @@ final class Daemon: ObservableObject {
     endpoint = URL(string: "ws://127.0.0.1:\(port)/rpc")!
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     connect()
-    sampleForever()
   }
 
   func usage(of worktree: Worktree) -> Usage { worktree.pids.compactMap { usage[$0] }.reduce(.zero, +) }
@@ -39,15 +42,7 @@ final class Daemon: ObservableObject {
 
   var processCount: Int { worktrees.reduce(0) { $0 + $1.services.count } }
 
-  private func sampleForever() {
-    Task { @MainActor in
-      while true {
-        let pids = self.worktrees.flatMap(\.pids)
-        self.usage = await ProcessStats.sample(pids: pids)
-        try? await Task.sleep(for: .seconds(3))
-      }
-    }
-  }
+
 
   var health: Health { Health.of(worktrees, connected: connected) }
 
@@ -70,6 +65,7 @@ final class Daemon: ObservableObject {
     socket = task
     task.resume()
     send(tag: "Status", payload: nil, id: "1")
+    send(tag: "Usage", payload: nil, id: "2")
     receive(task)
   }
 
@@ -114,8 +110,14 @@ final class Daemon: ObservableObject {
     guard let envelope = try? JSONDecoder().decode(Envelope.self, from: data) else {
       return
     }
-    guard envelope.tag == "Chunk", envelope.requestId == "1" else { return }
-    send(ack: "1")
+    guard envelope.tag == "Chunk", let requestId = envelope.requestId else { return }
+    send(ack: requestId)
+    if requestId == "2" {
+      guard let chunk = try? JSONDecoder().decode(UsageChunk.self, from: data), let latest = chunk.values.last else { return }
+      usage = Dictionary(latest.compactMap { key, value in Int(key).map { ($0, value) } }, uniquingKeysWith: { first, _ in first })
+      return
+    }
+    guard requestId == "1" else { return }
     guard let chunk = try? JSONDecoder().decode(StatusChunk.self, from: data), let snapshot = chunk.values.last else { return }
     connected = true
     notifyFailures(Array(snapshot.values))
