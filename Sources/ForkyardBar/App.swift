@@ -184,6 +184,7 @@ struct RepoSection: View {
 
 struct MenuContent: View {
   @ObservedObject var daemon: Daemon
+  @State private var contentHeight: CGFloat = 40
 
   var header: some View {
     HStack {
@@ -200,8 +201,8 @@ struct MenuContent: View {
   }
 
   var listHeight: CGFloat {
-    let rows = daemon.worktrees.count * 30 + daemon.projects.count * 24
-    return CGFloat(min(max(rows, 40), 560))
+    let tallest = (NSScreen.main?.visibleFrame.height ?? 800) * 0.75
+    return min(max(contentHeight, 40), tallest)
   }
 
   var footer: some View {
@@ -223,6 +224,7 @@ struct MenuContent: View {
             RepoSection(daemon: daemon, name: project.name, worktrees: project.worktrees)
           }
         }
+        .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
       }
       .frame(height: listHeight)
       Divider()
