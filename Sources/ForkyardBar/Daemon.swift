@@ -17,6 +17,7 @@ struct InfoExit: Decodable {
   struct Outcome: Decodable {
     struct Value: Decodable {
       let cli: String
+      let dashboard: String?
       let version: String?
       let `protocol`: Int?
     }
@@ -38,15 +39,15 @@ final class Daemon: ObservableObject {
   private var cliPath: String?
   private let requiredProtocol = 1
 
-  let dashboard = URL(string: "http://forkyard.localhost")!
-  private let endpoint: URL
+  @Published private(set) var dashboard = URL(string: "http://forkyard.localhost")!
+  private let portFile: URL
   private var socket: URLSessionWebSocketTask?
   private var nextId = 100
   private var lastStates: [String: String] = [:]
   private var alerted: Set<String> = []
 
-  init(port: Int = Int(ProcessInfo.processInfo.environment["FORKYARD_HTTP_PORT"] ?? "") ?? 4949) {
-    endpoint = URL(string: "ws://127.0.0.1:\(port)/rpc")!
+  init(home: String = ProcessInfo.processInfo.environment["FORKYARD_HOME"] ?? NSHomeDirectory() + "/.forkyard") {
+    portFile = URL(fileURLWithPath: home).appendingPathComponent("http-port")
     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
     connect()
   }
@@ -108,7 +109,18 @@ final class Daemon: ObservableObject {
     send(tag: "Down", payload: ["id": worktree.id])
   }
 
+  private var endpoint: URL? {
+    guard let text = try? String(contentsOf: portFile, encoding: .utf8),
+      let port = Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
+    else { return nil }
+    return URL(string: "ws://127.0.0.1:\(port)/rpc")
+  }
+
   private func connect() {
+    guard let endpoint else {
+      reconnectLater()
+      return
+    }
     let task = URLSession.shared.webSocketTask(with: endpoint)
     socket = task
     task.resume()
@@ -162,6 +174,7 @@ final class Daemon: ObservableObject {
     if envelope.tag == "Exit", envelope.requestId == "3" {
       let info = (try? JSONDecoder().decode(InfoExit.self, from: data))?.exit.value
       cliPath = info?.cli
+      if let address = info?.dashboard.flatMap(URL.init(string:)) { dashboard = address }
       if (info?.protocol ?? 0) < requiredProtocol {
         problem = "The running forkyard daemon (\(info?.version ?? "an older version")) is too old for this app. Restart the daemon to upgrade it."
       }
