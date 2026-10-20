@@ -122,6 +122,9 @@ struct WorktreeRow: View {
       Spacer()
       Text("\(daemon.usage(of: worktree).cpuText)  \(daemon.usage(of: worktree).memoryText)")
         .font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+      if worktree.sharedCount > 0 {
+        Text("\(worktree.sharedCount) shared").font(.system(size: 11, weight: .medium)).foregroundStyle(Color.cyan)
+      }
       if !worktree.failed.isEmpty {
         Text("\(worktree.failed.count) failed").font(.system(size: 11, weight: .medium)).foregroundStyle(.red)
       }

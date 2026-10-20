@@ -44,6 +44,7 @@ struct Worktree: Decodable, Hashable, Identifiable {
 
   var serviceNames: [String] { services.keys.sorted() }
   var failed: [String] { serviceNames.filter { services[$0]?.state.tag == "Failed" } }
+  var sharedCount: Int { services.values.filter { $0.sharedWith != nil }.count }
   var settledCount: Int { services.values.filter { ["Ready", "Done"].contains($0.state.tag) }.count }
   var allPids: [Int] { services.values.compactMap { $0.state.run?.pid } }
   var ownPids: [Int] { services.values.filter { $0.sharedWith == nil }.compactMap { $0.state.run?.pid } }
