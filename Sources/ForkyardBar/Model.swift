@@ -19,8 +19,11 @@ struct ServiceView: Decodable, Hashable {
   let url: String?
   let state: ServiceState
   let sharedWith: String?
+  let asleep: Bool?
 
-  enum CodingKeys: String, CodingKey { case kind = "_tag", url, state, sharedWith }
+  enum CodingKeys: String, CodingKey { case kind = "_tag", url, state, sharedWith, asleep }
+
+  var isAsleep: Bool { asleep == true }
 
   var sharedLabel: String? { sharedWith.map { "via " + ($0.split(separator: ".").first.map(String.init) ?? $0) } }
 }
@@ -49,7 +52,9 @@ struct Worktree: Decodable, Hashable, Identifiable {
   var allPids: [Int] { services.values.compactMap { $0.state.run?.pid } }
   var ownPids: [Int] { services.values.filter { $0.sharedWith == nil }.compactMap { $0.state.run?.pid } }
 
-  var starting: Bool { services.values.contains { ["Waiting", "Preparing", "Starting", "Restarting"].contains($0.state.tag) } }
+  var starting: Bool {
+    services.values.contains { !$0.isAsleep && ["Waiting", "Preparing", "Starting", "Restarting"].contains($0.state.tag) }
+  }
 }
 
 enum Health {

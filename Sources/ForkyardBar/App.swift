@@ -80,14 +80,24 @@ struct ServiceRow: View {
   let name: String
   let view: ServiceView
 
+  var nameColor: Color {
+    if view.isAsleep { return .secondary }
+    return view.sharedWith != nil ? .cyan : .primary
+  }
+
   var body: some View {
     HStack(spacing: 6) {
-      if view.sharedWith != nil {
+      if view.isAsleep {
+        Circle().strokeBorder(Color.gray, lineWidth: 1).frame(width: 7, height: 7)
+      } else if view.sharedWith != nil {
         Circle().fill(Color.cyan).frame(width: 7, height: 7)
       } else {
         StateDot(state: view.state.tag)
       }
-      Text(name).font(.system(size: 12)).foregroundStyle(view.sharedWith != nil ? Color.cyan : Color.primary)
+      Text(name).font(.system(size: 12)).foregroundStyle(nameColor)
+      if view.isAsleep {
+        Text("asleep").font(.system(size: 11)).foregroundStyle(.secondary)
+      }
       if let shared = view.sharedLabel {
         Text(shared).font(.system(size: 11)).foregroundStyle(Color.cyan)
       }
