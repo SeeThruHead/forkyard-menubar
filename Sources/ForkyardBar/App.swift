@@ -82,14 +82,22 @@ struct ServiceRow: View {
 
   var body: some View {
     HStack(spacing: 6) {
-      StateDot(state: view.state.tag)
-      Text(name).font(.system(size: 12))
+      if view.sharedWith != nil {
+        Circle().fill(Color.cyan).frame(width: 7, height: 7)
+      } else {
+        StateDot(state: view.state.tag)
+      }
+      Text(name).font(.system(size: 12)).foregroundStyle(view.sharedWith != nil ? Color.cyan : Color.primary)
+      if let shared = view.sharedLabel {
+        Text(shared).font(.system(size: 11)).foregroundStyle(Color.cyan)
+      }
       if let reason = view.state.reason {
         Text(reason).font(.system(size: 11)).foregroundStyle(.red).lineLimit(1)
       }
       Spacer()
       if let usage = daemon.usage(of: view) {
-        Text("\(usage.cpuText)  \(usage.memoryText)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+        Text("\(usage.cpuText)  \(usage.memoryText)").font(.system(size: 11, design: .monospaced))
+          .foregroundStyle(view.sharedWith != nil ? Color.cyan.opacity(0.8) : Color.secondary)
       }
       if let url = view.url, let link = URL(string: url) {
         Button("Open") { NSWorkspace.shared.open(link) }.buttonStyle(.link).font(.system(size: 11))
@@ -152,7 +160,7 @@ struct RepoSection: View {
   let worktrees: [Worktree]
   @State private var open = true
 
-  var usage: Usage { worktrees.map { daemon.usage(of: $0) }.reduce(.zero, +) }
+  var usage: Usage { daemon.usage(of: worktrees) }
   var settled: Int { worktrees.reduce(0) { $0 + $1.settledCount } }
   var total: Int { worktrees.reduce(0) { $0 + $1.services.count } }
   var failed: Int { worktrees.reduce(0) { $0 + $1.failed.count } }

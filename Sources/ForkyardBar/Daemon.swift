@@ -52,13 +52,15 @@ final class Daemon: ObservableObject {
     connect()
   }
 
-  func usage(of worktree: Worktree) -> Usage { worktree.pids.compactMap { usage[$0] }.reduce(.zero, +) }
+  func usage(of worktree: Worktree) -> Usage { worktree.ownPids.compactMap { usage[$0] }.reduce(.zero, +) }
+
+  func usage(of worktrees: [Worktree]) -> Usage { Set(worktrees.flatMap { $0.allPids }).compactMap { usage[$0] }.reduce(.zero, +) }
 
   func usage(of view: ServiceView) -> Usage? { view.state.run.flatMap { usage[$0.pid] } }
 
-  var totalUsage: Usage { worktrees.map { usage(of: $0) }.reduce(.zero, +) }
+  var totalUsage: Usage { usage(of: worktrees) }
 
-  var processCount: Int { worktrees.reduce(0) { $0 + $1.services.count } }
+  var processCount: Int { Set(worktrees.flatMap { $0.allPids }).count }
 
 
 

@@ -18,8 +18,11 @@ struct ServiceView: Decodable, Hashable {
   let kind: String
   let url: String?
   let state: ServiceState
+  let sharedWith: String?
 
-  enum CodingKeys: String, CodingKey { case kind = "_tag", url, state }
+  enum CodingKeys: String, CodingKey { case kind = "_tag", url, state, sharedWith }
+
+  var sharedLabel: String? { sharedWith.map { "via " + ($0.split(separator: ".").first.map(String.init) ?? $0) } }
 }
 
 struct InfraView: Decodable, Hashable {
@@ -42,7 +45,8 @@ struct Worktree: Decodable, Hashable, Identifiable {
   var serviceNames: [String] { services.keys.sorted() }
   var failed: [String] { serviceNames.filter { services[$0]?.state.tag == "Failed" } }
   var settledCount: Int { services.values.filter { ["Ready", "Done"].contains($0.state.tag) }.count }
-  var pids: [Int] { services.values.compactMap { $0.state.run?.pid } }
+  var allPids: [Int] { services.values.compactMap { $0.state.run?.pid } }
+  var ownPids: [Int] { services.values.filter { $0.sharedWith == nil }.compactMap { $0.state.run?.pid } }
 
   var starting: Bool { services.values.contains { ["Waiting", "Preparing", "Starting", "Restarting"].contains($0.state.tag) } }
 }
