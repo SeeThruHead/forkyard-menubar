@@ -48,7 +48,7 @@ final class Daemon: ObservableObject {
 
   init(home: String = ProcessInfo.processInfo.environment["FORKYARD_HOME"] ?? NSHomeDirectory() + "/.forkyard") {
     portFile = URL(fileURLWithPath: home).appendingPathComponent("http-port")
-    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { @Sendable _, _ in }
     connect()
   }
 
@@ -146,11 +146,11 @@ final class Daemon: ObservableObject {
     nextId += 1
     let body: [String: Any] = ["_tag": "Request", "id": requestId, "tag": tag, "payload": payload ?? NSNull(), "headers": []]
     guard let data = try? JSONSerialization.data(withJSONObject: body), let text = String(data: data, encoding: .utf8) else { return }
-    socket?.send(.string(text)) { _ in }
+    socket?.send(.string(text)) { @Sendable _ in }
   }
 
   private func receive(_ task: URLSessionWebSocketTask) {
-    task.receive { [weak self] result in
+    task.receive { @Sendable [weak self] result in
       Task { @MainActor in
         guard let self, self.socket === task else { return }
         switch result {
@@ -197,7 +197,7 @@ final class Daemon: ObservableObject {
   }
 
   private func send(ack requestId: String) {
-    socket?.send(.string(#"{"_tag":"Ack","requestId":"\#(requestId)"}"#)) { _ in }
+    socket?.send(.string(#"{"_tag":"Ack","requestId":"\#(requestId)"}"#)) { @Sendable _ in }
   }
 
   private func notifyFailures(_ next: [Worktree]) {
