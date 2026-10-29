@@ -40,7 +40,14 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
     refreshButton()
   }
 
+  private let broadcaster = StateBroadcast("dev.seethruhead.forkyard-bar")
+
   private func refreshButton() {
+    broadcaster.publish([
+      "state": "\(daemon.health)",
+      "worktrees": String(daemon.worktrees.count),
+      "failing": daemon.worktrees.flatMap { worktree in worktree.failed.map { "\(worktree.id)/\($0)" } }.sorted().joined(separator: ","),
+    ])
     guard let button = item?.button else { return }
     button.image = NSImage(systemSymbolName: daemon.health.symbol, accessibilityDescription: "forkyard")
     button.title = daemon.connected ? " \(daemon.worktrees.count)" : ""
