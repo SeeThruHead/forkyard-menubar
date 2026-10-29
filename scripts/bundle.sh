@@ -2,7 +2,7 @@
 set -eu
 cd "$(dirname "$0")/.."
 version="${VERSION:-0.1.0}"
-swift build -c release
+swift build -c release --disable-sandbox
 app=build/ForkyardBar.app
 rm -rf build
 mkdir -p "$app/Contents/MacOS"
