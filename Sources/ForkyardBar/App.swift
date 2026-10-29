@@ -15,7 +15,7 @@ enum ForkyardBar {
 }
 
 @MainActor
-final class StatusBarController: NSObject, NSApplicationDelegate {
+final class StatusBarController: NSObject, NSApplicationDelegate, NSPopoverDelegate {
   private let daemon = Daemon()
   private let popover = NSPopover()
   private var item: NSStatusItem?
@@ -33,6 +33,7 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
     popover.contentViewController = host
     popover.behavior = .transient
     popover.animates = false
+    popover.delegate = self
 
     watcher = daemon.objectWillChange.sink { [weak self] _ in
       DispatchQueue.main.async { self?.refreshButton() }
@@ -54,14 +55,32 @@ final class StatusBarController: NSObject, NSApplicationDelegate {
   }
 
   @objc private func toggle() {
-    guard let button = item?.button else { return }
+    guard let button = item?.button, let buttonWindow = button.window else { return }
     if popover.isShown {
       popover.performClose(nil)
       return
     }
-    popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+    anchor.setFrame(buttonWindow.convertToScreen(button.convert(button.bounds, to: nil)), display: false)
+    anchor.orderFrontRegardless()
+    guard let anchorView = anchor.contentView else { return }
+    popover.show(relativeTo: anchorView.bounds, of: anchorView, preferredEdge: .minY)
     popover.contentViewController?.view.window?.makeKey()
   }
+
+  func popoverDidClose(_ notification: Notification) {
+    anchor.orderOut(nil)
+  }
+
+  private lazy var anchor: NSWindow = {
+    let window = NSWindow(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.hasShadow = false
+    window.ignoresMouseEvents = true
+    window.level = .statusBar
+    window.collectionBehavior = [.canJoinAllSpaces, .stationary]
+    return window
+  }()
 }
 
 struct StateDot: View {
